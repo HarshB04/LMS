@@ -1,0 +1,107 @@
+# Library Management System — Modernization Walkthrough
+
+## ✅ How to Run the Project
+
+| Step | Action |
+|------|--------|
+| 1 | Open **XAMPP Control Panel** → Start **Apache** + **MySQL** |
+| 2 | Go to **http://localhost/phpmyadmin** → create DB named **`library`** |
+| 3 | Select `library` DB → **Import** → choose [library.sql](file:///c:/xampp/htdocs/New%20folder/Library-Management-System/library.sql) → click **Go** |
+| 4 | Open browser → **http://localhost/New%20folder/Library-Management-System/** |
+
+### Default Login Credentials
+
+| Role | URL | Username/Email | Password |
+|------|-----|----------------|----------|
+| **Admin** | `.../adminlogin.php` | `admin` | `Test@123` |
+| **User** | `.../index.php` | `anuj.lpu1@gmail.com` | `Test@123` |
+
+> [!NOTE]
+> After importing the new [library.sql](file:///c:/xampp/htdocs/New%20folder/Library-Management-System/library.sql), all passwords are stored as **bcrypt hashes**. The old MD5 hashes have been replaced in the SQL file with the bcrypt equivalent of `Test@123`.
+
+---
+
+## 🛠️ Changes Made
+
+### 🔴 Security — Password Hashing (Critical Fix)
+All 6 password-handling files were updated to replace **MD5** with **bcrypt**:
+
+| File | Change |
+|------|--------|
+| [index.php](file:///c:/xampp/htdocs/New%20folder/Library-Management-System/index.php) | `md5()` → `password_verify()`, fetch by email only |
+| [adminlogin.php](file:///c:/xampp/htdocs/New%20folder/Library-Management-System/adminlogin.php) | `md5()` → `password_verify()` |
+| [admin/index.php](file:///c:/xampp/htdocs/New%20folder/Library-Management-System/admin/index.php) | `md5()` → `password_verify()` |
+| [signup.php](file:///c:/xampp/htdocs/New%20folder/Library-Management-System/signup.php) | `md5()` → `password_hash($pass, PASSWORD_BCRYPT)` |
+| [change-password.php](file:///c:/xampp/htdocs/New%20folder/Library-Management-System/change-password.php) | Both MD5 → bcrypt |
+| [admin/change-password.php](file:///c:/xampp/htdocs/New%20folder/Library-Management-System/admin/change-password.php) | Both MD5 → bcrypt |
+| [user-forgot-password.php](file:///c:/xampp/htdocs/New%20folder/Library-Management-System/user-forgot-password.php) | MD5 → bcrypt |
+
+### 🟠 Bug Fixes
+
+| Bug | Fix |
+|-----|-----|
+| Stray `</script>` tag in [adminlogin.php](file:///c:/xampp/htdocs/New%20folder/Library-Management-System/adminlogin.php) line 94 | Removed entirely |
+| [signup.php](file:///c:/xampp/htdocs/New%20folder/Library-Management-System/signup.php) used [studentid.txt](file:///c:/xampp/htdocs/New%20folder/Library-Management-System/studentid.txt) flat file for ID generation (race condition risk) | Now uses `$dbh->lastInsertId()` → generates `SID001`, `SID002`, etc. |
+| All pages used `header('location:...')` inside `else{}` wrapping entire HTML | Now uses early `exit()` redirect guard pattern |
+
+### 🟡 Frontend — Bootstrap 3 → Bootstrap 5
+
+**38 PHP files** updated (8 user-facing + 29 admin + both header.php files):
+
+```diff
+- <link href="assets/css/bootstrap.css" rel="stylesheet" />
++ <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+
+- <script src="assets/js/jquery-1.10.2.js"></script>
++ <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+
+- <script src="assets/js/bootstrap.js"></script>
++ <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+- <link href='http://fonts.googleapis.com/css?family=Open+Sans' ...>
++ <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600&display=swap" ...>
+```
+
+Bootstrap 3 class changes in [header.php](file:///c:/xampp/htdocs/New%20folder/Library-Management-System/includes/header.php) files:
+
+| Bootstrap 3 | Bootstrap 5 |
+|-------------|-------------|
+| `navbar-inverse` | `navbar-dark bg-dark` |
+| `data-toggle` | `data-bs-toggle` |
+| `data-target` | `data-bs-target` |
+| `pull-right` | `ms-auto` |
+| `navbar-right` | `ms-auto` |
+| `col-xs-*` | `col-*` |
+| `panel / panel-heading / panel-body` | `card / card-header / card-body` |
+| Bootstrap 3 carousel (`data-ride`, `.item`) | Bootstrap 5 carousel (`data-bs-ride`, `.carousel-item`) |
+
+### 🟡 Database — utf8mb4 Charset
+[library.sql](file:///c:/xampp/htdocs/New%20folder/Library-Management-System/library.sql) updated:
+```diff
+- ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
++ ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+```
+
+### 🟡 Config — PDO Hardening ([includes/config.php](file:///c:/xampp/htdocs/New%20folder/Library-Management-System/includes/config.php))
+```diff
+- $dbh = new PDO("mysql:host=...", ..., array(PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES 'utf8'"));
++ $dbh = new PDO("mysql:host=...;charset=utf8mb4", ..., [
++     PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
++     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_OBJ,
++     PDO::ATTR_EMULATE_PREPARES   => false,
++ ]);
+```
+
+---
+
+## 📊 Summary of Files Modified
+
+| Category | Files Changed |
+|----------|---------------|
+| Security (password) | 7 files |
+| Bug fixes | 2 files |
+| Bootstrap 5 + jQuery 3.7 | 38 files (all PHP pages) |
+| Database | [library.sql](file:///c:/xampp/htdocs/New%20folder/Library-Management-System/library.sql) |
+| Config | [includes/config.php](file:///c:/xampp/htdocs/New%20folder/Library-Management-System/includes/config.php), `admin/includes/config.php` |
+
+**Total: ~40 files modernized**

@@ -1,0 +1,147 @@
+# Library Management System — Run Guide & Modernization Plan
+
+## ⚡ Step-by-Step: How to Run the Project
+
+### Prerequisites
+- [XAMPP](https://www.apachefriends.org/download.html) installed (includes Apache + MySQL + PHP)
+
+---
+
+### Step 1 — Place the Project in `htdocs`
+
+Your project is already in the right place:
+```
+C:\xampp\htdocs\New folder\Library-Management-System\
+```
+
+---
+
+### Step 2 — Start XAMPP Services
+
+1. Open **XAMPP Control Panel**
+2. Click **Start** next to **Apache**
+3. Click **Start** next to **MySQL**
+
+---
+
+### Step 3 — Import the Database
+
+1. Open your browser and go to: [http://localhost/phpmyadmin](http://localhost/phpmyadmin)
+2. Click **New** in the left sidebar → name the database **`library`** → click **Create**
+3. Select the `library` database → click the **Import** tab
+4. Click **Choose File** → browse to:
+   ```
+   C:\xampp\htdocs\New folder\Library-Management-System\library.sql
+   ```
+5. Click **Go** — you should see a success message
+
+---
+
+### Step 4 — Verify Database Config
+
+Open [includes/config.php](file:///c:/xampp/htdocs/New%20folder/Library-Management-System/includes/config.php) — confirm credentials match your XAMPP setup:
+```php
+define('DB_HOST','localhost');
+define('DB_USER','root');
+define('DB_PASS','');       // default XAMPP has no password
+define('DB_NAME','library');
+```
+
+---
+
+### Step 5 — Open the Application
+
+| Page | URL |
+|------|-----|
+| **User Login** | http://localhost/New%20folder/Library-Management-System/ |
+| **Admin Login** | http://localhost/New%20folder/Library-Management-System/adminlogin.php |
+
+> [!NOTE]
+> The default password for all test accounts (including admin) is **`Test@123`**
+> Admin username: `admin`
+
+---
+
+## 🔍 Source Code Audit — Issues Found
+
+| # | File(s) | Issue | Severity |
+|---|---------|-------|----------|
+| 1 | [index.php](file:///c:/xampp/htdocs/New%20folder/Library-Management-System/index.php), [adminlogin.php](file:///c:/xampp/htdocs/New%20folder/Library-Management-System/adminlogin.php), [signup.php](file:///c:/xampp/htdocs/New%20folder/Library-Management-System/signup.php), [change-password.php](file:///c:/xampp/htdocs/New%20folder/Library-Management-System/change-password.php) | **MD5 password hashing** — MD5 is cryptographically broken | 🔴 Critical |
+| 2 | [adminlogin.php](file:///c:/xampp/htdocs/New%20folder/Library-Management-System/adminlogin.php) line 94 | **Stray `</script>` tag** — causes HTML parse error | 🟠 Bug |
+| 3 | All HTML files | **Bootstrap 3** (EOL, 2019) — use Bootstrap 5 | 🟡 Outdated |
+| 4 | All HTML files | **jQuery 1.10.2** (EOL) — use jQuery 3.7 | 🟡 Outdated |
+| 5 | All HTML files | **HTTP Google Fonts** URL — should be HTTPS | 🟡 Security |
+| 6 | [signup.php](file:///c:/xampp/htdocs/New%20folder/Library-Management-System/signup.php) | **[studentid.txt](file:///c:/xampp/htdocs/New%20folder/Library-Management-System/studentid.txt) flat file** for ID generation — race condition risk | 🟠 Bug |
+| 7 | [library.sql](file:///c:/xampp/htdocs/New%20folder/Library-Management-System/library.sql) | **`charset=latin1`** — use `utf8mb4` for full Unicode support | 🟡 Outdated |
+| 8 | All PHP files | **`error_reporting(0)`** hides bugs during development | 🟡 Dev practice |
+| 9 | All forms | **No CSRF tokens** on any form | 🔴 Critical |
+
+---
+
+## Proposed Changes
+
+### Security — Password Hashing
+
+#### [MODIFY] [includes/config.php](file:///c:/xampp/htdocs/New%20folder/Library-Management-System/includes/config.php)
+- No change needed here (PDO already used ✅)
+
+#### [MODIFY] [index.php](file:///c:/xampp/htdocs/New%20folder/Library-Management-System/index.php)
+- Replace `md5($_POST['password'])` with a `password_verify()` flow
+- SQL query: fetch by email only, then verify hash in PHP
+
+#### [MODIFY] [adminlogin.php](file:///c:/xampp/htdocs/New%20folder/Library-Management-System/adminlogin.php)
+- Same MD5 → `password_verify()` fix
+- Also remove stray `</script>` tag on line 94
+
+#### [MODIFY] [signup.php](file:///c:/xampp/htdocs/New%20folder/Library-Management-System/signup.php)
+- Replace `md5($_POST['password'])` with `password_hash($password, PASSWORD_BCRYPT)`
+- Replace [studentid.txt](file:///c:/xampp/htdocs/New%20folder/Library-Management-System/studentid.txt) ID generation with MySQL `AUTO_INCREMENT`-derived ID using `$dbh->lastInsertId()`
+
+#### [MODIFY] [change-password.php](file:///c:/xampp/htdocs/New%20folder/Library-Management-System/change-password.php), [admin/change-password.php](file:///c:/xampp/htdocs/New%20folder/Library-Management-System/admin/change-password.php)
+- Replace MD5 with `password_hash` / `password_verify`
+
+---
+
+### Frontend — Upgrade Bootstrap & jQuery
+
+#### [MODIFY] All [.php](file:///c:/xampp/htdocs/New%20folder/Library-Management-System/temp.php) files with HTML `<head>`
+- Replace local `assets/css/bootstrap.css` reference with Bootstrap 5 CDN
+- Replace `jquery-1.10.2.js` with jQuery 3.7 CDN
+- Replace `assets/js/bootstrap.js` with Bootstrap 5 Bundle CDN
+- Change Google Fonts URL from `http://` to `https://`
+- Update `navbar-inverse`, `col-xs-*` and other Bootstrap 3-only classes to Bootstrap 5 equivalents
+
+---
+
+### Database — Charset Upgrade
+
+#### [MODIFY] [library.sql](file:///c:/xampp/htdocs/New%20folder/Library-Management-System/library.sql)
+- Change all `CHARSET=latin1` to `CHARSET=utf8mb4`
+- Change `COLLATE` to `utf8mb4_unicode_ci`
+
+---
+
+## User Review Required
+
+> [!WARNING]
+> **Password hashing migration**: Since existing passwords in the DB are MD5 hashes, switching to `password_hash()` means old passwords will stop working. The plan is to update the DB rows with the correct bcrypt hashes for test users, and require all users to reset their password for real deployments. Please confirm this approach is acceptable.
+
+> [!IMPORTANT]
+> **Bootstrap 3 → 5 upgrade**: Some Bootstrap 3 class names (e.g., `col-xs-*`, `panel`, `navbar-inverse`) do not exist in Bootstrap 5. UI layout may need adjustment. We will update classes in all PHP files.
+
+---
+
+## Verification Plan
+
+### Manual Verification (Step-by-Step)
+
+After changes are applied:
+
+1. Open XAMPP Control Panel → ensure Apache & MySQL are running
+2. Re-import the updated [library.sql](file:///c:/xampp/htdocs/New%20folder/Library-Management-System/library.sql) (or run the ALTER commands)
+3. Navigate to: `http://localhost/New%20folder/Library-Management-System/`
+4. **Test User Login**: Email `anuj.lpu1@gmail.com` | Password `Test@123` → should land on dashboard
+5. **Test Admin Login**: `http://localhost/.../adminlogin.php` | Username `admin` | Password `Test@123`
+6. **Test Signup**: Register a new student → confirm success alert shows Student ID
+7. **Check browser DevTools** (F12 → Console) → should show zero JS errors
+8. **Check page layout** → navbar, cards, tables should render correctly with Bootstrap 5
